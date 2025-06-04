@@ -1,30 +1,98 @@
-import torch
-torch.classes.__path__ = []
+import streamlit as st
+import bcrypt
+import hashlib
+from pathlib import Path
 import os
 import json
-import hashlib
 import requests
-from pathlib import Path
-import time
-import streamlit as st
 from langchain.embeddings import SentenceTransformerEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.document_loaders import (
+from langchain.document_loaders import (
     TextLoader,
-    DirectoryLoader, 
     PyPDFLoader,
-    UnstructuredWordDocumentLoader)
-# from langchain.document_loaders import (
-#     TextLoader,
-#     PyPDFLoader,
-#     UnstructuredWordDocumentLoader,
-#     DirectoryLoader,
-# )
+    UnstructuredWordDocumentLoader,
+    DirectoryLoader,
+)
 
-# ✅ Set page config FIRST
-st.set_page_config(page_title="Innowation Week", layout="wide")
-st.title("PiCloud AI Assistant")
+# Set page config FIRST
+st.set_page_config(page_title="PiCloud AI Assistant", layout="wide")
+
+USER_FILE = "users.txt"
+
+# ----------------------------------
+# User Authentication
+# ----------------------------------
+
+def load_users():
+    users = {}
+    if Path(USER_FILE).exists():
+        with open(USER_FILE, "r") as f:
+            for line in f:
+                username, hashed = line.strip().split(":")
+                users[username] = hashed.encode()
+    return users
+
+def save_user(username, password):
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+    with open(USER_FILE, "a") as f:
+        f.write(f"{username}:{hashed.decode()}\n")
+
+def authenticate(username, password):
+    users = load_users()
+    if username in users:
+        return bcrypt.checkpw(password.encode(), users[username])
+    return False
+
+# ----------------------------------
+# Login / Signup UI
+# ----------------------------------
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    tab1, tab2 = st.tabs(["🔐 Login", "🆕 Sign Up"])
+
+    with tab1:
+        st.subheader("Login")
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Login"):
+            if authenticate(username, password):
+                st.session_state.authenticated = True
+                st.session_state.username = username
+                st.success("Logged in successfully!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
+
+    with tab2:
+        st.subheader("Sign Up")
+        new_user = st.text_input("Choose Username", key="signup_user")
+        new_pass = st.text_input("Choose Password", type="password", key="signup_pass")
+        if st.button("Sign Up"):
+            users = load_users()
+            if new_user in users:
+                st.warning("Username already exists.")
+            elif new_user.strip() == "" or new_pass.strip() == "":
+                st.warning("Username and password cannot be empty.")
+            else:
+                save_user(new_user, new_pass)
+                st.success("Signup successful! You can now login.")
+
+    st.stop()
+
+# ----------------------------------
+# Main App (Only after login)
+# ----------------------------------
+
+st.title(f"Welcome, {st.session_state.username} 👋")
+
+
+
+# ... continue with indexing, context retrieval, and generation
+
 
 # Constants
 DOC_DIR = Path("documents")
