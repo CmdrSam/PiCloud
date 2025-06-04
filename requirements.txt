@@ -6,3 +6,4 @@ pypdf
 python-docx 
 requests
 langchain-community
+unstructured[all-docs]

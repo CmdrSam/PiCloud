@@ -13,7 +13,7 @@ from langchain.document_loaders import (
 )
 import json
 
-# Load documents
+# Cache document indexing
 @st.cache_resource
 def load_and_index_documents(folder_path):
     loaders = [
@@ -33,28 +33,13 @@ def load_and_index_documents(folder_path):
     vector_store = FAISS.from_documents(docs, embeddings)
     return vector_store
 
-# Get relevant context
+# Retrieve context
 def get_relevant_context(query, vector_store, k=3):
     retriever = vector_store.as_retriever(search_kwargs={"k": k})
     docs = retriever.get_relevant_documents(query)
     return "\n\n".join(doc.page_content for doc in docs)
 
-# Call Ollama Gemma API
-# def generate_with_gemma(prompt):
-#     url = "http://localhost:11434/api/generate"
-#     payload = {
-#         "model": "gemma3:latest",
-#         "prompt": prompt,
-#         "stream": False
-#     }
-#     headers = {"Content-Type": "application/json"}
-#     try:
-#         response = requests.post(url, json=payload, headers=headers)
-#         response.raise_for_status()
-#         return response.json()["response"]
-#     except requests.RequestException as e:
-#         return f"Error calling Gemma API: {e}"
-
+# Ollama Gemma stream generation
 def generate_with_gemma_stream(prompt):
     url = "http://localhost:11434/api/generate"
     payload = {
@@ -86,40 +71,42 @@ def generate_with_gemma_stream(prompt):
     except requests.RequestException as e:
         return f"Error calling Gemma API: {e}"
 
-# Streamlit UI
-st.set_page_config(page_title="Innowation week", layout="wide")
+# Streamlit UI setup
+st.set_page_config(page_title="Innowation Week", layout="wide")
 st.title("PiCloud AI Assistant")
 
-# Upload documents
-uploaded_files = st.file_uploader("Upload documents (.txt, .pdf, .docx, .md)", accept_multiple_files=True)
-
-# Save uploaded files to disk
+# Ensure documents folder exists
 doc_dir = Path("documents")
 doc_dir.mkdir(exist_ok=True)
 
+# Optional file uploader
+uploaded_files = st.file_uploader("Upload documents (.txt, .pdf, .docx, .md) [optional]", accept_multiple_files=True)
+
+# Save uploaded files
 for file in uploaded_files:
     filepath = doc_dir / file.name
     if not filepath.exists():
         with open(filepath, "wb") as f:
             f.write(file.getbuffer())
 
+# Load and index documents on startup
+with st.spinner("Indexing documents..."):
+    vector_store = load_and_index_documents(str(doc_dir))
+st.success("Documents indexed and ready.")
 
-# Load and index documents 
-if uploaded_files:
-    with st.spinner("Indexing documents..."):
-        vector_store = load_and_index_documents(str(doc_dir))
-    st.success("Documents indexed successfully.")
+# Input for query
+question = st.text_input("Ask a question about your documents:")
 
-    # User query input
-    question = st.text_input("Ask a question about your documents:")
-
-    if question:
-        with st.spinner("Generating answer..."):
-            context = get_relevant_context(question, vector_store)
-        full_prompt = f"""You are an assistant answering questions based on the following context:
+if question:
+    with st.spinner("Generating answer..."):
+        context = get_relevant_context(question, vector_store)
+    full_prompt = f"""You are an assistant answering questions based on the following context:
 
 {context}
 
 Question: {question}
 Answer:"""
-        generate_with_gemma_stream(full_prompt)
+    generate_with_gemma_stream(full_prompt)
+
+    with st.expander("See retrieved context"):
+        st.markdown(context)
