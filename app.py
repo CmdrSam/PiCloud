@@ -1,19 +1,26 @@
+import torch
+torch.classes.__path__ = []
 import os
 import json
 import hashlib
-import time
 import requests
 from pathlib import Path
+import time
 import streamlit as st
 from langchain.embeddings import SentenceTransformerEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.document_loaders import (
+from langchain_community.document_loaders import (
     TextLoader,
+    DirectoryLoader, 
     PyPDFLoader,
-    UnstructuredWordDocumentLoader,
-    DirectoryLoader,
-)
+    UnstructuredWordDocumentLoader)
+# from langchain.document_loaders import (
+#     TextLoader,
+#     PyPDFLoader,
+#     UnstructuredWordDocumentLoader,
+#     DirectoryLoader,
+# )
 
 # ✅ Set page config FIRST
 st.set_page_config(page_title="Innowation Week", layout="wide")
@@ -70,28 +77,28 @@ def load_and_index_documents_if_changed():
     previous_meta = load_index_metadata()
 
     if current_meta != previous_meta or not VECTOR_INDEX_PATH.exists():
-        st.info("Changes detected. Re-indexing documents...")
-        loaders = [
-            DirectoryLoader(str(DOC_DIR), glob="**/*.txt", loader_cls=TextLoader),
-            DirectoryLoader(str(DOC_DIR), glob="**/*.md", loader_cls=TextLoader),
-            DirectoryLoader(str(DOC_DIR), glob="**/*.pdf", loader_cls=PyPDFLoader),
-            DirectoryLoader(str(DOC_DIR), glob="**/*.docx", loader_cls=UnstructuredWordDocumentLoader),
-        ]
-        all_docs = []
-        for loader in loaders:
-            all_docs.extend(loader.load())
+        with st.spinner("Changes detected. Re-indexing documents..."):
+            loaders = [
+                DirectoryLoader(str(DOC_DIR), glob="**/*.txt", loader_cls=TextLoader),
+                DirectoryLoader(str(DOC_DIR), glob="**/*.md", loader_cls=TextLoader),
+                DirectoryLoader(str(DOC_DIR), glob="**/*.pdf", loader_cls=PyPDFLoader),
+                DirectoryLoader(str(DOC_DIR), glob="**/*.docx", loader_cls=UnstructuredWordDocumentLoader),
+            ]
+            all_docs = []
+            for loader in loaders:
+                all_docs.extend(loader.load())
 
-        splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-        docs = splitter.split_documents(all_docs)
+            splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            docs = splitter.split_documents(all_docs)
 
-        embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-        vector_store = FAISS.from_documents(docs, embeddings)
-        vector_store.save_local(str(VECTOR_INDEX_PATH))
-        save_index_metadata(current_meta)
+            embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+            vector_store = FAISS.from_documents(docs, embeddings)
+            vector_store.save_local(str(VECTOR_INDEX_PATH))
+            save_index_metadata(current_meta)
     else:
-        st.info("No changes detected. Loading existing index...")
-        embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-        vector_store = FAISS.load_local(str(VECTOR_INDEX_PATH), embeddings, allow_dangerous_deserialization=True)
+        with st.spinner("No changes detected. Loading existing index..."):
+            embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+            vector_store = FAISS.load_local(str(VECTOR_INDEX_PATH), embeddings, allow_dangerous_deserialization=True)
 
     return vector_store
 
