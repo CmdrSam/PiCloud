@@ -156,7 +156,7 @@ def load_and_index_documents_if_changed():
             for loader in loaders:
                 all_docs.extend(loader.load())
 
-            splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=100)
             docs = splitter.split_documents(all_docs)
 
             embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -219,7 +219,7 @@ question = st.text_input("Ask a question about your documents:")
 if question:
     with st.spinner("Generating answer..."):
         context = get_relevant_context(question, vector_store)
-        full_prompt = f"""You are an assistant answering questions based on the following context:
+        full_prompt = f"""You are an assistant that gives very short answers and to the point answers based on the following context:
 
 {context}
 
